@@ -64,20 +64,55 @@ function displayConfirmNotification() {
 }
 
 function configurePushSub() {
+  // if there is no support for servicworker then break
   if (!("serviceWorker" in navigator)) {
     return;
   }
 
+  // make scope for sw-registry
+  var reg;
   navigator.serviceWorker.ready
     .then(function (swreg) {
+      reg = swreg;
       return swreg.pushManager.getSubscription();
     })
     .then(function (subscription) {
       if (subscription === null) {
         // create a new subscription
+        // with protection so not every one can send messages
+        // through the subscribtion. use vapid
+        var vapidPubKey =
+          "BIuJhON2ddvj-44508oIOnkHIhEhcWAPTMqiT3-tGs75H2-CaCHx9sdqMs2bszStC5Ds-hMv4U4X6iMVcBu9mNg";
+        var convertedVapidPubKey = urlBase64ToUint8Array(vapidPubKey);
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidPubKey,
+        });
       } else {
         // We have a subscription
       }
+    })
+    .then(function (newSub) {
+      fetch(
+        "https://pwagram-a8ef2-default-rtdb.europe-west1.firebasedatabase.app/subscriptions.json",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(newSub),
+        }
+      )
+        .then(function (res) {
+          if (res.ok) {
+            console.log(res);
+            displayConfirmNotification();
+          }
+        })
+        .catch(function (err) {
+          console.log(err);
+        });
     });
 }
 
@@ -89,7 +124,7 @@ function askForNotificationPermission(event) {
     } else {
       // could hide button here
       configurePushSub();
-      displayConfirmNotification();
+      // displayConfirmNotification();
     }
   });
 }
